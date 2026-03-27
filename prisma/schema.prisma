@@ -1,0 +1,559 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  STAFF
+  FABRICATOR
+  INSTALLER
+  MEASUREMENT_TECH
+}
+
+enum CustomerType {
+  DIRECT
+  CONTRACTOR_REFERRED
+}
+
+enum JobType {
+  COUNTERTOP
+  REPAIR
+  CABINET_INSTALL
+  COMMERCIAL
+}
+
+enum ProjectStatus {
+  NEW_LEAD
+  CONSULTATION_PENDING
+  MEASUREMENT_NEEDED
+  MEASUREMENT_SCHEDULED
+  MEASUREMENT_COMPLETE
+  ESTIMATE_DRAFT
+  ESTIMATE_SENT
+  AWAITING_APPROVAL
+  INVOICE_CREATED
+  INVOICE_SENT
+  DEPOSIT_PENDING
+  DEPOSIT_PAID
+  MATERIAL_ORDERED
+  WAITING_FOR_STONE
+  READY_FOR_FABRICATION
+  IN_FABRICATION
+  FABRICATION_COMPLETE
+  INSTALL_SCHEDULING_PENDING
+  INSTALL_SCHEDULED
+  INSTALLED
+  FINAL_PAYMENT_PENDING
+  CLOSED
+}
+
+enum SecondaryStatus {
+  ON_HOLD
+  REPAIR_JOB
+  CABINET_INSTALL_ONLY
+  COMMERCIAL_PROJECT
+  WAITING_ON_CUSTOMER
+  WAITING_ON_CONTRACTOR
+  WAITING_ON_MATERIAL
+  ISSUE_DELAY
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum DeliveryStatus {
+  NOT_ORDERED
+  ORDERED
+  IN_TRANSIT
+  DELIVERED
+  AT_SHOP
+}
+
+enum PaymentType {
+  DEPOSIT
+  PROGRESS
+  FINAL
+  REFUND
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  CREDIT_CARD
+  DEBIT_CARD
+  TRANSFER
+  ZELLE
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  REFUNDED
+}
+
+enum EventType {
+  MEASUREMENT
+  FABRICATION
+  INSTALLATION
+  REPAIR_VISIT
+  CABINET_INSTALL
+  CONSULTATION
+  DELIVERY
+  OTHER
+}
+
+enum EventStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+enum FileType {
+  IMAGE
+  DOCUMENT
+  PDF
+  RECEIPT
+  OTHER
+}
+
+enum FileCategory {
+  BEFORE_PHOTO
+  AFTER_PHOTO
+  SITE_PHOTO
+  SLAB_PHOTO
+  RECEIPT
+  INVOICE
+  MEASUREMENT
+  DESIGN_REF
+  SIGNED_APPROVAL
+  NOTE
+  OTHER
+}
+
+enum CommChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+  PHONE
+  INTERNAL
+}
+
+enum CommDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum ConsultationStatus {
+  NEW
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(STAFF)
+  phone     String?
+  avatar    String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedProjects  Project[]          @relation("AssignedTo")
+  statusChanges     StatusHistory[]
+  projectNotes      ProjectNote[]
+  sentCommunications CommunicationLog[] @relation("SentBy")
+  scheduledEvents   ScheduleEvent[]    @relation("EventAssignedTo")
+  automationLogs    AutomationLog[]    @relation("TriggeredBy")
+
+  @@map("users")
+}
+
+model Customer {
+  id           String       @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String
+  altPhone     String?
+  address      String?
+  city         String?
+  state        String?
+  zip          String?
+  customerType CustomerType @default(DIRECT)
+  contractorId String?
+  notes        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  contractor          Contractor?        @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+  projects            Project[]
+  consultationForms   ConsultationForm[]
+
+  @@map("customers")
+}
+
+model Contractor {
+  id            String   @id @default(cuid())
+  companyName   String
+  contactName   String
+  email         String?
+  phone         String
+  altPhone      String?
+  address       String?
+  city          String?
+  state         String?
+  zip           String?
+  licenseNumber String?
+  specialty     String?
+  rating        Float?
+  notes         String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  referredCustomers Customer[]
+  projects          Project[]
+
+  @@map("contractors")
+}
+
+model Project {
+  id              String           @id @default(cuid())
+  projectNumber   String           @unique
+  name            String
+  jobType         JobType          @default(COUNTERTOP)
+  status          ProjectStatus    @default(NEW_LEAD)
+  secondaryStatus SecondaryStatus?
+  priority        Priority         @default(MEDIUM)
+
+  // Relations
+  customerId   String
+  contractorId String?
+  assignedToId String?
+
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contractor Contractor? @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+  assignedTo User?       @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  // Job address
+  jobAddress String?
+  jobCity    String?
+  jobState   String?
+  jobZip     String?
+
+  // Pricing
+  sqft              Decimal? @db.Decimal(10, 2)
+  linearFt          Decimal? @db.Decimal(10, 2)
+  laborRate         Decimal? @db.Decimal(10, 2)
+  stoneRate         Decimal? @db.Decimal(10, 2)
+  edgePrice         Decimal? @db.Decimal(10, 2)
+  sinkCutoutPrice   Decimal? @db.Decimal(10, 2)
+  backsplashPrice   Decimal? @db.Decimal(10, 2)
+  waterfallPrice    Decimal? @db.Decimal(10, 2)
+  additionalCosts   Decimal? @db.Decimal(10, 2)
+  totalEstimate     Decimal? @db.Decimal(10, 2)
+  deposit           Decimal? @db.Decimal(10, 2)
+  finalPayment      Decimal? @db.Decimal(10, 2)
+  balanceDue        Decimal? @db.Decimal(10, 2)
+
+  // Dates
+  estimateDate   DateTime?
+  approvalDate   DateTime?
+  depositPaidDate DateTime?
+  finalPaidDate  DateTime?
+  completionDate DateTime?
+
+  // Notes
+  notes       String?
+  internalNotes String?
+  aiSummary   String?
+  aiNextSteps String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Child relations
+  scope            ProjectScope?
+  materials        ProjectMaterial[]
+  payments         Payment[]
+  scheduleEvents   ScheduleEvent[]
+  statusHistory    StatusHistory[]
+  files            ProjectFile[]
+  projectNotes     ProjectNote[]
+  communications   CommunicationLog[]
+  automationLogs   AutomationLog[]
+  consultationForms ConsultationForm[]
+  milestones       ProjectMilestone[]
+
+  @@map("projects")
+}
+
+model ProjectScope {
+  id        String @id @default(cuid())
+  projectId String @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Area flags
+  kitchen   Boolean @default(false)
+  vanity    Boolean @default(false)
+  fireplace Boolean @default(false)
+  bar       Boolean @default(false)
+  outdoor   Boolean @default(false)
+  repair    Boolean @default(false)
+  cabinets  Boolean @default(false)
+  otherArea String?
+
+  // Material details
+  stoneMaterial String?
+  stoneColor    String?
+  slabVendor    String?
+  finishType    String?
+
+  // Fixtures & edges
+  sinkDetails   String?
+  faucetHoles   Int?
+  edgeProfile   String?
+
+  // Backsplash & features
+  backsplashType       String?
+  fullHeightBacksplash Boolean @default(false)
+  waterfall            Boolean @default(false)
+  miteredEdge          Boolean @default(false)
+
+  // Additional work
+  tileLabor    Boolean @default(false)
+  demoRemoval  Boolean @default(false)
+  cabinetWork  Boolean @default(false)
+
+  // Notes
+  laborNotes    String?
+  customerPrefs String?
+  customNotes   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("project_scopes")
+}
+
+model ProjectMaterial {
+  id             String         @id @default(cuid())
+  projectId      String
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  materialName   String
+  vendor         String?
+  costToUs       Decimal?       @db.Decimal(10, 2)
+  sellingPrice   Decimal?       @db.Decimal(10, 2)
+  purchaseDate   DateTime?
+  deliveryStatus DeliveryStatus @default(NOT_ORDERED)
+  slabPhotos     String[]
+  receiptUrl     String?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@map("project_materials")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invoiceNumber String?
+  qbReference   String?
+  paymentType   PaymentType
+  paymentMethod PaymentMethod?
+  amount        Decimal       @db.Decimal(10, 2)
+  status        PaymentStatus @default(PENDING)
+  dueDate       DateTime?
+  paidDate      DateTime?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+model ScheduleEvent {
+  id           String      @id @default(cuid())
+  projectId    String
+  project      Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  eventType    EventType
+  title        String
+  description  String?
+  startTime    DateTime
+  endTime      DateTime?
+  allDay       Boolean     @default(false)
+  location     String?
+  gcalEventId  String?
+  assignedToId String?
+  assignedTo   User?       @relation("EventAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedTeam String[]
+  status       EventStatus @default(SCHEDULED)
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@map("schedule_events")
+}
+
+model StatusHistory {
+  id          String  @id @default(cuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fromStatus  String?
+  toStatus    String
+  changedById String?
+  changedBy   User?   @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@map("status_history")
+}
+
+model ProjectFile {
+  id        String       @id @default(cuid())
+  projectId String
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  fileType  FileType     @default(OTHER)
+  category  FileCategory @default(OTHER)
+  phase     String?
+  fileSize  Int?
+  mimeType  String?
+  notes     String?
+  createdAt DateTime     @default(now())
+
+  @@map("project_files")
+}
+
+model ProjectNote {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  content    String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@map("project_notes")
+}
+
+model CommunicationLog {
+  id         String        @id @default(cuid())
+  projectId  String
+  project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  channel    CommChannel
+  direction  CommDirection
+  recipient  String?
+  subject    String?
+  body       String?
+  sentById   String?
+  sentBy     User?         @relation("SentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  status     String?
+  externalId String?
+  createdAt  DateTime      @default(now())
+
+  @@map("communication_logs")
+}
+
+model AutomationLog {
+  id          String   @id @default(cuid())
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  triggeredBy String?
+  triggeredByUser User? @relation("TriggeredBy", fields: [triggeredBy], references: [id], onDelete: SetNull)
+  eventType   String
+  action      String
+  channel     String?
+  status      String?
+  details     String?
+  createdAt   DateTime @default(now())
+
+  @@map("automation_logs")
+}
+
+model ConsultationForm {
+  id                 String              @id @default(cuid())
+  customerId         String?
+  customer           Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  projectId          String?
+  project            Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  customerName       String
+  phone              String?
+  email              String?
+  address            String?
+  customerType       String?
+  contractorName     String?
+  projectType        String?
+  areaOfWork         String?
+  materialPref       String?
+  colorPref          String?
+  finishPref         String?
+  edgePref           String?
+  sinkFaucet         String?
+  backsplash         String?
+  waterfallMiter     String?
+  timeline           String?
+  budgetNotes        String?
+  measurementNeeded  Boolean  @default(false)
+  estimateRequested  Boolean  @default(false)
+  followUpRequired   Boolean  @default(false)
+  photoUrls          String[]
+  generalNotes       String?
+  status             ConsultationStatus @default(NEW)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("consultation_forms")
+}
+
+model ProjectMilestone {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  phase       String?
+  dueDate     DateTime?
+  completedAt DateTime?
+  status      MilestoneStatus @default(PENDING)
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("project_milestones")
+}
