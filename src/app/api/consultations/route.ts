@@ -1,21 +1,11 @@
-/**
- * Consultation Forms API Route
- *
- * GET  /api/consultations - List consultation forms
- * POST /api/consultations - Submit a consultation form
- */
-
 import { NextRequest, NextResponse } from "next/server";
+import { getConsultations, createConsultation } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const status = searchParams.get("status");
-
+  const status = request.nextUrl.searchParams.get("status") || undefined;
   try {
-    return NextResponse.json({
-      consultations: [],
-      filters: { status },
-    });
+    const consultations = await getConsultations({ status });
+    return NextResponse.json({ consultations });
   } catch (error) {
     console.error("Error fetching consultations:", error);
     return NextResponse.json({ error: "Failed to fetch consultations" }, { status: 500 });
@@ -25,17 +15,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    // TODO: Create consultation form
-    // Optionally create customer and project records
-    // if (body.createProject) {
-    //   const customer = await prisma.customer.create({ ... });
-    //   const project = await prisma.project.create({ ... });
-    //   consultation.projectId = project.id;
-    //   consultation.customerId = customer.id;
-    // }
-    return NextResponse.json({ message: "Consultation form submission endpoint ready", body }, { status: 201 });
+    if (!body.customerName || !body.phone) {
+      return NextResponse.json({ error: "customerName and phone are required" }, { status: 400 });
+    }
+    const result = await createConsultation(body);
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    console.error("Error submitting consultation:", error);
-    return NextResponse.json({ error: "Failed to submit consultation" }, { status: 500 });
+    console.error("Error creating consultation:", error);
+    return NextResponse.json({ error: "Failed to create consultation" }, { status: 500 });
   }
 }

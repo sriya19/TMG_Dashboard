@@ -1,26 +1,16 @@
-/**
- * Schedule Events API Route
- *
- * GET  /api/schedule - List schedule events
- * POST /api/schedule - Create a schedule event
- */
-
 import { NextRequest, NextResponse } from "next/server";
+import { getScheduleEvents, createScheduleEvent } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
-  const eventType = searchParams.get("eventType");
-  const assignedToId = searchParams.get("assignedToId");
-
+  const sp = request.nextUrl.searchParams;
   try {
-    // TODO: Prisma query with date range filter
-    // Also sync with Google Calendar
-    return NextResponse.json({
-      events: [],
-      filters: { startDate, endDate, eventType, assignedToId },
+    const events = await getScheduleEvents({
+      startDate: sp.get("startDate") || undefined,
+      endDate: sp.get("endDate") || undefined,
+      eventType: sp.get("eventType") || undefined,
+      projectId: sp.get("projectId") || undefined,
     });
+    return NextResponse.json({ events });
   } catch (error) {
     console.error("Error fetching schedule:", error);
     return NextResponse.json({ error: "Failed to fetch schedule" }, { status: 500 });
@@ -30,13 +20,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    // TODO: Create schedule event
-    // Create Google Calendar event
-    // Trigger automation (event_scheduled)
-    // Send notifications to customer and team
-    return NextResponse.json({ message: "Schedule event creation endpoint ready", body }, { status: 201 });
+    if (!body.projectId || !body.eventType || !body.title || !body.startTime) {
+      return NextResponse.json({ error: "projectId, eventType, title, and startTime required" }, { status: 400 });
+    }
+    const event = await createScheduleEvent(body);
+    return NextResponse.json(event, { status: 201 });
   } catch (error) {
-    console.error("Error creating schedule event:", error);
+    console.error("Error creating event:", error);
     return NextResponse.json({ error: "Failed to create event" }, { status: 500 });
   }
 }

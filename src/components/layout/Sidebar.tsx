@@ -16,6 +16,7 @@ import {
   CreditCard,
   BarChart3,
   UserCog,
+  Send,
   ChevronLeft,
   ChevronRight,
   Gem,
@@ -33,6 +34,7 @@ const navItems = [
   { label: "Payments", icon: CreditCard, href: "/payments" },
   { label: "Reports", icon: BarChart3, href: "/reports" },
   { label: "Team", icon: UserCog, href: "/team" },
+  { label: "Dispatch", icon: Send, href: "/dispatch" },
 ];
 
 export function Sidebar() {

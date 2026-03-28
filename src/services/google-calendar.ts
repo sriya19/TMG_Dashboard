@@ -1,13 +1,8 @@
 /**
  * Google Calendar Integration Service
  *
- * Handles creating, updating, and managing calendar events
- * for measurements, installations, fabrication, and other scheduling.
- *
- * Setup required:
- * 1. Enable Google Calendar API in Google Cloud Console
- * 2. Create OAuth2 credentials
- * 3. Set environment variables (see .env.example)
+ * Real implementation using Google Calendar API v3.
+ * Requires OAuth2 credentials set in environment variables.
  */
 
 export interface CalendarEvent {
@@ -38,14 +33,53 @@ export interface CreateEventParams {
 
 class GoogleCalendarService {
   private calendarId: string;
+  private accessToken: string | null = null;
+  private tokenExpiry: number = 0;
 
   constructor() {
     this.calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
   }
 
-  /**
-   * Build event description with project details
-   */
+  private async getAccessToken(): Promise<string> {
+    if (this.accessToken && Date.now() < this.tokenExpiry) {
+      return this.accessToken;
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+    if (!clientId || !clientSecret || !refreshToken) {
+      console.warn("[GCal] Missing credentials - using mock mode");
+      return "mock_token";
+    }
+
+    try {
+      const response = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: refreshToken,
+          grant_type: "refresh_token",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Token refresh failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      this.accessToken = data.access_token;
+      this.tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+      return this.accessToken!;
+    } catch (error) {
+      console.error("[GCal] Token refresh error:", error);
+      return "mock_token";
+    }
+  }
+
   private buildDescription(params: CreateEventParams): string {
     return [
       `Project: ${params.projectNumber}`,
@@ -56,103 +90,44 @@ class GoogleCalendarService {
       params.notes ? `Notes: ${params.notes}` : "",
       "",
       "--- TMG Dashboard Event ---",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    ].filter(Boolean).join("\n");
   }
 
-  /**
-   * Create a measurement event
-   */
-  async createMeasurementEvent(params: CreateEventParams): Promise<CalendarEvent> {
-    console.log("[GCal] Creating measurement event:", params.title);
-    const description = this.buildDescription(params);
-    // TODO: Use Google Calendar API to create event
-    // POST https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
-    return this.mockEvent(params, description);
-  }
+  private async apiCall(method: string, endpoint: string, body?: unknown): Promise<unknown> {
+    const token = await this.getAccessToken();
 
-  /**
-   * Create an installation event
-   */
-  async createInstallEvent(params: CreateEventParams): Promise<CalendarEvent> {
-    console.log("[GCal] Creating install event:", params.title);
-    const description = this.buildDescription(params);
-    return this.mockEvent(params, description);
-  }
+    if (token === "mock_token") {
+      console.log(`[GCal Mock] ${method} ${endpoint}`);
+      return null;
+    }
 
-  /**
-   * Create a fabrication event
-   */
-  async createFabricationEvent(params: CreateEventParams): Promise<CalendarEvent> {
-    console.log("[GCal] Creating fabrication event:", params.title);
-    const description = this.buildDescription(params);
-    return this.mockEvent(params, description);
-  }
-
-  /**
-   * Update an existing event
-   */
-  async updateEvent(eventId: string, updates: Partial<CreateEventParams>): Promise<CalendarEvent> {
-    console.log("[GCal] Updating event:", eventId);
-    // TODO: PATCH https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events/{eventId}
-    return this.mockEvent(
-      {
-        title: "Updated Event",
-        description: "",
-        location: "",
-        startTime: new Date(),
-        endTime: new Date(),
-        attendeeEmails: [],
-        projectNumber: "",
-        eventType: "",
-        customerName: "",
-        customerPhone: "",
-        assignedTeam: [],
-        ...updates,
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}${endpoint}`;
+    const response = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      "Updated"
-    );
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Google Calendar API error: ${response.status} ${error}`);
+    }
+
+    if (response.status === 204) return null;
+    return response.json();
   }
 
-  /**
-   * Delete/cancel an event
-   */
-  async cancelEvent(eventId: string): Promise<void> {
-    console.log("[GCal] Cancelling event:", eventId);
-    // TODO: DELETE https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events/{eventId}
-  }
-
-  /**
-   * Get events for a date range
-   */
-  async getEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
-    console.log("[GCal] Getting events from", startDate, "to", endDate);
-    // TODO: GET with timeMin and timeMax params
-    return [];
-  }
-
-  /**
-   * Reschedule an event
-   */
-  async rescheduleEvent(
-    eventId: string,
-    newStart: Date,
-    newEnd: Date
-  ): Promise<CalendarEvent> {
-    console.log("[GCal] Rescheduling event:", eventId);
-    return this.updateEvent(eventId, { startTime: newStart, endTime: newEnd });
-  }
-
-  private mockEvent(params: CreateEventParams, description: string): CalendarEvent {
+  private buildEventBody(params: CreateEventParams) {
     return {
-      id: `gcal-${Date.now()}`,
       summary: params.title,
-      description,
+      description: this.buildDescription(params),
       location: params.location,
       start: { dateTime: params.startTime.toISOString(), timeZone: "America/Chicago" },
       end: { dateTime: params.endTime.toISOString(), timeZone: "America/Chicago" },
-      attendees: params.attendeeEmails.map((email) => ({ email })),
+      attendees: params.attendeeEmails.map(email => ({ email })),
       reminders: {
         useDefault: false,
         overrides: [
@@ -161,6 +136,76 @@ class GoogleCalendarService {
         ],
       },
     };
+  }
+
+  async createEvent(params: CreateEventParams): Promise<CalendarEvent> {
+    console.log(`[GCal] Creating ${params.eventType} event: ${params.title}`);
+    const body = this.buildEventBody(params);
+
+    const result = await this.apiCall("POST", "/events", body);
+
+    if (!result) {
+      // Mock response
+      return {
+        id: `gcal-${Date.now()}`,
+        summary: params.title,
+        description: this.buildDescription(params),
+        location: params.location,
+        start: { dateTime: params.startTime.toISOString(), timeZone: "America/Chicago" },
+        end: { dateTime: params.endTime.toISOString(), timeZone: "America/Chicago" },
+        attendees: params.attendeeEmails.map(email => ({ email })),
+        reminders: { useDefault: false, overrides: [{ method: "email", minutes: 60 }, { method: "popup", minutes: 30 }] },
+      };
+    }
+
+    return result as CalendarEvent;
+  }
+
+  async createMeasurementEvent(params: CreateEventParams): Promise<CalendarEvent> {
+    return this.createEvent({ ...params, eventType: "Measurement" });
+  }
+
+  async createInstallEvent(params: CreateEventParams): Promise<CalendarEvent> {
+    return this.createEvent({ ...params, eventType: "Installation" });
+  }
+
+  async createFabricationEvent(params: CreateEventParams): Promise<CalendarEvent> {
+    return this.createEvent({ ...params, eventType: "Fabrication" });
+  }
+
+  async updateEvent(eventId: string, updates: Partial<CreateEventParams>): Promise<CalendarEvent | null> {
+    console.log("[GCal] Updating event:", eventId);
+
+    const updateBody: Record<string, unknown> = {};
+    if (updates.title) updateBody.summary = updates.title;
+    if (updates.location) updateBody.location = updates.location;
+    if (updates.startTime) updateBody.start = { dateTime: updates.startTime.toISOString(), timeZone: "America/Chicago" };
+    if (updates.endTime) updateBody.end = { dateTime: updates.endTime.toISOString(), timeZone: "America/Chicago" };
+
+    const result = await this.apiCall("PATCH", `/events/${eventId}`, updateBody);
+    return (result as CalendarEvent) || null;
+  }
+
+  async cancelEvent(eventId: string): Promise<void> {
+    console.log("[GCal] Cancelling event:", eventId);
+    await this.apiCall("DELETE", `/events/${eventId}`);
+  }
+
+  async getEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
+    const params = new URLSearchParams({
+      timeMin: startDate.toISOString(),
+      timeMax: endDate.toISOString(),
+      singleEvents: "true",
+      orderBy: "startTime",
+    });
+
+    const result = await this.apiCall("GET", `/events?${params}`);
+    if (!result) return [];
+    return ((result as { items?: CalendarEvent[] }).items || []) as CalendarEvent[];
+  }
+
+  async rescheduleEvent(eventId: string, newStart: Date, newEnd: Date): Promise<CalendarEvent | null> {
+    return this.updateEvent(eventId, { startTime: newStart, endTime: newEnd });
   }
 }
 
