@@ -15,7 +15,17 @@ import {
   AlertTriangle,
   Users,
   ChevronRight,
+  ChevronDown,
   Hammer,
+  UserPlus,
+  Ruler,
+  FileText,
+  Receipt,
+  Package,
+  Factory,
+  HardHat,
+  CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
 import {
   BarChart,
@@ -75,6 +85,147 @@ function JobTypeBadge({ type }: { type: string }) {
   );
 }
 
+// ─── Pipeline Stage Configuration ───────────────────────────────────────────
+
+interface PipelineStage {
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  statuses: ProjectStatus[];
+  barColor: string;
+  barGradientFrom: string;
+  barGradientTo: string;
+  bgColor: string;
+  textColor: string;
+  iconBg: string;
+  iconColor: string;
+  borderColor: string;
+  dotColor: string;
+  ringColor: string;
+}
+
+const PIPELINE_STAGES: PipelineStage[] = [
+  {
+    name: "Leads & Consultation",
+    icon: UserPlus,
+    statuses: ["NEW_LEAD", "CONSULTATION_PENDING"],
+    barColor: "bg-blue-500",
+    barGradientFrom: "from-blue-400",
+    barGradientTo: "to-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-600",
+    borderColor: "border-blue-200",
+    dotColor: "bg-blue-500",
+    ringColor: "ring-blue-200",
+  },
+  {
+    name: "Measurement",
+    icon: Ruler,
+    statuses: ["MEASUREMENT_NEEDED", "MEASUREMENT_SCHEDULED", "MEASUREMENT_COMPLETE"],
+    barColor: "bg-purple-500",
+    barGradientFrom: "from-purple-400",
+    barGradientTo: "to-purple-600",
+    bgColor: "bg-purple-50",
+    textColor: "text-purple-700",
+    iconBg: "bg-purple-100",
+    iconColor: "text-purple-600",
+    borderColor: "border-purple-200",
+    dotColor: "bg-purple-500",
+    ringColor: "ring-purple-200",
+  },
+  {
+    name: "Estimating",
+    icon: FileText,
+    statuses: ["ESTIMATE_DRAFT", "ESTIMATE_SENT", "AWAITING_APPROVAL"],
+    barColor: "bg-indigo-500",
+    barGradientFrom: "from-indigo-400",
+    barGradientTo: "to-indigo-600",
+    bgColor: "bg-indigo-50",
+    textColor: "text-indigo-700",
+    iconBg: "bg-indigo-100",
+    iconColor: "text-indigo-600",
+    borderColor: "border-indigo-200",
+    dotColor: "bg-indigo-500",
+    ringColor: "ring-indigo-200",
+  },
+  {
+    name: "Invoicing & Deposit",
+    icon: Receipt,
+    statuses: ["INVOICE_CREATED", "INVOICE_SENT", "DEPOSIT_PENDING", "DEPOSIT_PAID"],
+    barColor: "bg-orange-500",
+    barGradientFrom: "from-orange-400",
+    barGradientTo: "to-orange-600",
+    bgColor: "bg-orange-50",
+    textColor: "text-orange-700",
+    iconBg: "bg-orange-100",
+    iconColor: "text-orange-600",
+    borderColor: "border-orange-200",
+    dotColor: "bg-orange-500",
+    ringColor: "ring-orange-200",
+  },
+  {
+    name: "Materials",
+    icon: Package,
+    statuses: ["MATERIAL_ORDERED", "WAITING_FOR_STONE", "READY_FOR_FABRICATION"],
+    barColor: "bg-cyan-500",
+    barGradientFrom: "from-cyan-400",
+    barGradientTo: "to-cyan-600",
+    bgColor: "bg-cyan-50",
+    textColor: "text-cyan-700",
+    iconBg: "bg-cyan-100",
+    iconColor: "text-cyan-600",
+    borderColor: "border-cyan-200",
+    dotColor: "bg-cyan-500",
+    ringColor: "ring-cyan-200",
+  },
+  {
+    name: "Fabrication",
+    icon: Factory,
+    statuses: ["IN_FABRICATION", "FABRICATION_COMPLETE"],
+    barColor: "bg-teal-500",
+    barGradientFrom: "from-teal-400",
+    barGradientTo: "to-teal-600",
+    bgColor: "bg-teal-50",
+    textColor: "text-teal-700",
+    iconBg: "bg-teal-100",
+    iconColor: "text-teal-600",
+    borderColor: "border-teal-200",
+    dotColor: "bg-teal-500",
+    ringColor: "ring-teal-200",
+  },
+  {
+    name: "Installation",
+    icon: HardHat,
+    statuses: ["INSTALL_SCHEDULING_PENDING", "INSTALL_SCHEDULED", "INSTALLED"],
+    barColor: "bg-green-500",
+    barGradientFrom: "from-green-400",
+    barGradientTo: "to-green-600",
+    bgColor: "bg-green-50",
+    textColor: "text-green-700",
+    iconBg: "bg-green-100",
+    iconColor: "text-green-600",
+    borderColor: "border-green-200",
+    dotColor: "bg-green-500",
+    ringColor: "ring-green-200",
+  },
+  {
+    name: "Closeout",
+    icon: CheckCircle2,
+    statuses: ["FINAL_PAYMENT_PENDING", "CLOSED"],
+    barColor: "bg-emerald-500",
+    barGradientFrom: "from-emerald-400",
+    barGradientTo: "to-emerald-600",
+    bgColor: "bg-gray-50",
+    textColor: "text-gray-700",
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-600",
+    borderColor: "border-gray-200",
+    dotColor: "bg-emerald-500",
+    ringColor: "ring-emerald-200",
+  },
+];
+
 // ─── Dashboard Page ─────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -96,16 +247,28 @@ export default function Home() {
     .reduce((sum, p) => sum + p.amount, 0);
   const outstandingBalance = projects.reduce((sum, p) => sum + (p.balanceDue || 0), 0);
 
-  // Projects by status chart data
-  const statusCounts: Record<string, number> = {};
-  projects.forEach((p) => {
-    const label = STATUS_LABELS[p.status as ProjectStatus] || p.status;
-    statusCounts[label] = (statusCounts[label] || 0) + 1;
+  // Operations pipeline computed data
+  const pipelineData = PIPELINE_STAGES.map((stage) => {
+    const stageProjects = projects.filter((p) =>
+      (stage.statuses as string[]).includes(p.status)
+    );
+    const count = stageProjects.length;
+    const value = stageProjects.reduce((sum, p) => sum + (p.totalEstimate || 0), 0);
+    return { stage, stageProjects, count, value };
   });
-  const statusChartData = Object.entries(statusCounts).map(([name, count]) => ({
-    name,
-    count,
-  }));
+
+  const maxProjectsInStage = Math.max(
+    ...pipelineData.map((d) => d.count),
+    1
+  );
+
+  const totalPipelineValue = pipelineData.reduce((sum, d) => sum + d.value, 0);
+
+  const [expandedStages, setExpandedStages] = useState<Record<number, boolean>>({});
+
+  const toggleStage = (index: number) => {
+    setExpandedStages((prev) => ({ ...prev, [index]: !prev[index] }));
+  };
 
   // Urgent actions
   const overduePayments = payments.filter((p) => p.status === "OVERDUE");
@@ -259,27 +422,177 @@ export default function Home() {
         ))}
       </div>
 
-      {/* ── Projects by Status + Urgent Actions ──────────────────────── */}
+      {/* ── Operations Pipeline + Urgent Actions ─────────────────────── */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Projects by Status */}
+        {/* Operations Pipeline */}
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">Projects by Status</h2>
-          {isMounted ? (
-            <div style={{ height: 300 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={statusChartData} layout="vertical" margin={{ left: 120, right: 20 }}>
-                  <XAxis type="number" allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={120} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">Operations Pipeline</h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Track projects flowing through each business stage
+              </p>
             </div>
-          ) : (
-            <div style={{ height: 300 }} className="flex items-center justify-center text-slate-400">
-              Loading chart...
+            <div className="text-right">
+              <p className="text-sm font-bold text-slate-700">{projects.length} projects</p>
+              <p className="text-xs text-slate-400">{formatCurrency(totalPipelineValue)} total value</p>
             </div>
-          )}
+          </div>
+
+          {/* Funnel visualization */}
+          <div className="relative mt-4">
+            {pipelineData.map((data, index) => {
+              const { stage, stageProjects, count, value } = data;
+              const isExpanded = expandedStages[index] || false;
+              const StageIcon = stage.icon;
+              const isLast = index === pipelineData.length - 1;
+
+              // Funnel effect: each stage gets progressively narrower padding
+              // The bar width is proportional to project count
+              const barWidthPercent = Math.max(
+                (count / maxProjectsInStage) * 100,
+                count > 0 ? 8 : 0
+              );
+
+              // Funnel taper: reduce horizontal padding as we go down
+              const funnelIndentPx = Math.round(index * 6);
+
+              return (
+                <div key={stage.name} style={{ paddingLeft: funnelIndentPx, paddingRight: funnelIndentPx }}>
+                  {/* Stage row */}
+                  <button
+                    type="button"
+                    onClick={() => toggleStage(index)}
+                    className={`w-full group relative rounded-lg border ${stage.borderColor} transition-all duration-200 hover:shadow-md ${
+                      isExpanded ? stage.bgColor : "bg-white hover:" + stage.bgColor
+                    }`}
+                  >
+                    {/* Connecting line on the left */}
+                    {!isLast && (
+                      <div
+                        className="absolute left-6 top-full w-0.5 h-2 bg-slate-200 z-10"
+                        style={{ marginLeft: -funnelIndentPx + 3 * (index + 1) }}
+                      />
+                    )}
+
+                    <div className="flex items-center gap-3 p-3">
+                      {/* Stage number + icon */}
+                      <div className="relative flex-shrink-0">
+                        <div className={`w-10 h-10 rounded-full ${stage.iconBg} flex items-center justify-center ring-2 ${stage.ringColor}`}>
+                          <StageIcon className={`h-4.5 w-4.5 ${stage.iconColor}`} />
+                        </div>
+                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500">
+                          {index + 1}
+                        </span>
+                      </div>
+
+                      {/* Stage info + bar */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-sm font-semibold ${stage.textColor}`}>
+                            {stage.name}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {count > 0 && (
+                              <span className={`inline-flex items-center justify-center min-w-[1.75rem] h-6 px-1.5 rounded-full text-xs font-bold text-white ${stage.barColor}`}>
+                                {count}
+                              </span>
+                            )}
+                            {count === 0 && (
+                              <span className="text-xs text-slate-300 font-medium">0</span>
+                            )}
+                            {value > 0 && (
+                              <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+                                {formatCurrency(value)}
+                              </span>
+                            )}
+                            <ChevronDown
+                              className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
+                                isExpanded ? "rotate-180" : ""
+                              }`}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Progress bar with funnel tapering */}
+                        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r ${stage.barGradientFrom} ${stage.barGradientTo} transition-all duration-700 ease-out`}
+                            style={{ width: `${barWidthPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Expanded status breakdown */}
+                  {isExpanded && count > 0 && (
+                    <div
+                      className="mt-1 mb-1 space-y-1 overflow-hidden"
+                      style={{ paddingLeft: 52 }}
+                    >
+                      {stage.statuses.map((status) => {
+                        const statusCount = stageProjects.filter(
+                          (p) => p.status === status
+                        ).length;
+                        if (statusCount === 0) return null;
+                        const statusValue = stageProjects
+                          .filter((p) => p.status === status)
+                          .reduce((sum, p) => sum + (p.totalEstimate || 0), 0);
+                        const statusBarWidth = Math.max(
+                          (statusCount / count) * 100,
+                          10
+                        );
+                        return (
+                          <div
+                            key={status}
+                            className="flex items-center gap-3 text-xs py-1.5 px-3 rounded-md bg-white border border-slate-100 hover:border-slate-200 transition-colors"
+                          >
+                            <div className={`w-1.5 h-1.5 rounded-full ${stage.dotColor} flex-shrink-0`} />
+                            <StatusBadge status={status} />
+                            <div className="flex-1 min-w-0">
+                              <div className="w-full bg-slate-50 rounded-full h-1 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${stage.barColor} opacity-40`}
+                                  style={{ width: `${statusBarWidth}%` }}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-slate-700 font-semibold">
+                                {statusCount}
+                              </span>
+                              {statusValue > 0 && (
+                                <span className="text-slate-400">
+                                  {formatCurrency(statusValue)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {isExpanded && count === 0 && (
+                    <div
+                      className="mt-1 mb-1 text-xs text-slate-400 italic py-2"
+                      style={{ paddingLeft: 52 }}
+                    >
+                      No projects in this stage
+                    </div>
+                  )}
+
+                  {/* Flow connector arrow between stages */}
+                  {!isLast && (
+                    <div className="flex justify-center py-0.5">
+                      <ArrowRight className="h-3 w-3 text-slate-300 rotate-90" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Urgent Actions */}
